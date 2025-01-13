@@ -13,12 +13,14 @@ const (
 	IDLE TMState = iota
 	PAUSED
 	RUNNING
+	STOPPED
 )
 
 var tmstateNames = map[TMState]string{
 	IDLE:    "IDLE",
 	PAUSED:  "PAUSED",
 	RUNNING: "RUNNING",
+	STOPPED: "STOPPED",
 }
 
 func (s TMState) String() string {
@@ -48,6 +50,10 @@ type TimeMachine struct {
 	events     chan *Event
 }
 
+// NewTimeMachine creates a reference to a new TimeMachine.
+// The speed is the ratio between simulation and real time.
+// The eventChanSize is the capacity of the events channel. It should be at least the number of events that are expected to be scheduled initially or in one cycle.
+// The cycleTime is the time in ms between two checks for new commands and events.
 func NewTimeMachine(speed float64, eventChanSize int, cycleTime int) *TimeMachine {
 	return &TimeMachine{
 		eventQueue: NewEventQueue(),
@@ -60,6 +66,7 @@ func NewTimeMachine(speed float64, eventChanSize int, cycleTime int) *TimeMachin
 	}
 }
 
+// T returns the current simulation time of the time machine.
 func (tm *TimeMachine) T() float64 {
 	return tm.t
 }
@@ -72,7 +79,13 @@ func (tm *TimeMachine) Speed() float64 {
 	return tm.speed
 }
 
+// Schedule schedules a function f to be executed at dt after the current simulation time.
+// If dt is negative, it will be reset to 0.0.
 func (tm *TimeMachine) Schedule(dt float64, f func()) {
+	if dt < 0 {
+		log.Printf("dt = %v < 0. Will be reset to 0.0", dt)
+		dt = 0.0
+	}
 	tm.events <- (&Event{tm.t + dt, f})
 }
 
@@ -88,36 +101,44 @@ func (tm *TimeMachine) Stop() {
 	tm.cmds <- "STOP"
 }
 
+// SetSpeed sets the speed of the simulation.
+// If the speed is smaller than 0.01 then it will be reset to 0.01.
 func (tm *TimeMachine) SetSpeed(speed float64) {
+	if speed < 0.01 {
+		log.Printf("Speed = %v must not be smaller than 0.01. It will be reset to 0.01.", speed)
+		speed = 0.01
+	}
 	tm.cmds <- "SetSpeed " + strconv.FormatFloat(speed, 'f', -1, 64)
 }
 
+// Start starts the simulation.
+// It returns true if the simulation was started successfully.
 func (tm *TimeMachine) Start() (success bool) {
 	if tm.state != IDLE {
 
 		return false
 	}
 	tm.state = RUNNING
-	tm.run()
+	go tm.run()
 	return true
 }
 
 func (tm *TimeMachine) run() {
 	tick := (time.Duration)(1000000 * tm.cycleTime) //cycleTime ms.
-	t_start := tm.t
-	tReal_start := time.Now() //the start in real time
 	var tReal time.Time
+	var tReal_pause time.Time //timestamp of the last pause
+	var tReal_offset int64    // cumulated offset in ms due to pause and resume
 	ticker := time.NewTicker(tick)
+	tReal_start := time.Now() //the start in real time
 main:
 	for {
 		tReal = <-ticker.C
-		dtReal := tReal.Sub(tReal_start).Milliseconds() //ms
 		//check for events and commands
 	eventLoop:
 		for {
 			select {
 			case ev := <-tm.events:
-				tm.eventQueue.Add(ev)
+				tm.eventQueue.add(ev)
 			default:
 				break eventLoop
 			}
@@ -127,16 +148,23 @@ main:
 			select {
 			case cmd := <-tm.cmds:
 				if cmd == "PAUSE" {
-					tm.state = PAUSED
-					ticker.Stop()
+					if tm.state != RUNNING {
+						log.Printf("TimeMachine is not running. Ignoring PAUSE command.")
+					} else {
+						tm.state = PAUSED
+						tReal_pause = tReal
+					}
 				} else if cmd == "STOP" {
 					ticker.Stop()
+					tm.state = STOPPED
 					break main
 				} else if cmd == "RESUME" {
-					tm.state = RUNNING
-					t_start = tm.t
-					tReal_start = time.Now()
-					ticker.Reset(tick)
+					if tm.state != PAUSED {
+						log.Printf("TimeMachine is not paused. Ignoring RESUME command.")
+					} else {
+						tm.state = RUNNING
+						tReal_offset += tReal.Sub(tReal_pause).Milliseconds()
+					}
 				} else if strings.Fields(cmd)[0] == "SetSpeed" {
 					speed, err := strconv.ParseFloat(strings.Fields(cmd)[1], 64)
 					if err == nil {
@@ -152,13 +180,15 @@ main:
 			}
 		}
 		//run events from the "past" of the real time
+		dtReal := tReal.Sub(tReal_start).Milliseconds() - tReal_offset //time passed in ms since start minus offset
 		if tm.state == RUNNING {
 			for {
-				tNext, ok := tm.eventQueue.NextT()
+				tNext, ok := tm.eventQueue.nextT()
 				if !ok {
-					break
+					return
 				}
-				if (tNext - t_start) < float64(dtReal)*tm.speed {
+				if tNext < float64(dtReal)*tm.speed {
+					//log.Printf("t: %v, tNext: %v,  dtReal: %v, tReal: %v", tm.t, tNext, dtReal, tReal)
 					tm.Step()
 				} else {
 					break
@@ -168,8 +198,19 @@ main:
 	}
 }
 
+// Step processes the next event.
 func (tm *TimeMachine) Step() {
-	ev := tm.eventQueue.Next()
+	ev := tm.eventQueue.next()
 	tm.t = ev.t
 	ev.f()
+	//check for new events
+	for {
+		select {
+		case ev := <-tm.events:
+			tm.eventQueue.add(ev)
+		default:
+			return
+		}
+	}
+
 }

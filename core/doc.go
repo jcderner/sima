@@ -2,9 +2,9 @@
 Package core provides the core functionality for the discrete event simulation (DES).
 
 The [EventQueue] stores events that shall happen at a certain time and retrieves them
-(via [EventQueue.Next]) in a strictly time ordered manner. (Order of events at equal time are arbitrary)
+(via [EventQueue.next]) in a strictly time ordered manner. (Order of events at equal time are arbitrary)
 
-The [TimeMachine] runs a scenario by calling [EventQueue.Next] in a loop and processing the retrieved events
+The [TimeMachine] runs a scenario by calling [EventQueue.next] in a loop and processing the retrieved events
 which in turn may produce new events.
 
 We distinguish two different notions of time:

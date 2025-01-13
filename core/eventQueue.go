@@ -50,7 +50,7 @@ func (eq *EventQueue) Pop() interface{} {
 
 // tNext returns the time of the next event in ms.
 // If there are no more events then ok is false.
-func (eq EventQueue) NextT() (t float64, ok bool) {
+func (eq EventQueue) nextT() (t float64, ok bool) {
 	if len(eq) > 0 {
 		ok = true
 		t = eq[0].t
@@ -65,13 +65,13 @@ func NewEventQueue() *EventQueue {
 	return eq
 }
 
-// Add adds a new event to the queue.
-func (eq *EventQueue) Add(event *Event) {
+// add adds a new event to the queue.
+func (eq *EventQueue) add(event *Event) {
 	heap.Push(eq, event)
 }
 
-// Next retrieves and removes the next event from the queue.
-func (eq *EventQueue) Next() *Event {
+// next retrieves and removes the next event from the queue.
+func (eq *EventQueue) next() *Event {
 	if eq.Len() == 0 {
 		return nil
 	}
