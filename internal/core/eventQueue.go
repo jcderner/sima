@@ -6,8 +6,8 @@ import (
 
 // Event represents a single Event in the simulation
 type Event struct {
-	t float64
-	f func()
+	T float64
+	F func()
 }
 
 // EventQueue implements a priority queue for Events.
@@ -18,7 +18,7 @@ func (eq EventQueue) Len() int { return len(eq) }
 
 // Less returns true if the event at index i is less/earlier than the event at index j.
 func (eq EventQueue) Less(i, j int) bool {
-	return eq[i].t < eq[j].t
+	return eq[i].T < eq[j].T
 }
 
 // Swap swaps the events at index i and j.
@@ -50,10 +50,10 @@ func (eq *EventQueue) Pop() interface{} {
 
 // tNext returns the time of the next event in ms.
 // If there are no more events then ok is false.
-func (eq EventQueue) nextT() (t float64, ok bool) {
+func (eq EventQueue) NextT() (t float64, ok bool) {
 	if len(eq) > 0 {
 		ok = true
-		t = eq[0].t
+		t = eq[0].T
 	}
 	return t, ok
 }
@@ -65,13 +65,13 @@ func NewEventQueue() *EventQueue {
 	return eq
 }
 
-// add adds a new event to the queue.
-func (eq *EventQueue) add(event *Event) {
+// Add adds a new event to the queue.
+func (eq *EventQueue) Add(event *Event) {
 	heap.Push(eq, event)
 }
 
-// next retrieves and removes the next event from the queue.
-func (eq *EventQueue) next() *Event {
+// Next retrieves and removes the Next event from the queue.
+func (eq *EventQueue) Next() *Event {
 	if eq.Len() == 0 {
 		return nil
 	}
