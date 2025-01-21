@@ -77,11 +77,6 @@ func (tm *TimeMachine) T() float64 {
 	return tm.t
 }
 
-// SetCycleTime sets the cycle time of the time machine.
-func (tm *TimeMachine) SetCycleTime(cycleTime int) {
-	tm.cycleTime = cycleTime
-}
-
 // State returns the state of the TimeMachine. Possible states are:
 //   - IDLE: The initial state before the TM starts.
 //   - RUNNING: The TM is running by executing in (speed * real_time) one scheduled function after another.
