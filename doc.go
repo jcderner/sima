@@ -10,6 +10,6 @@ We distinguish two different notions of time:
 
 The TM - once started - executes the scheduled function in a strictly time ordered manner.
 
-Alternatively and for fastest processing the client may call [TimeMachine.Step] in a loop, which completely ignores the real time.
+Alternatively and for fastest processing the client may call [TimeMachine.step] in a loop, which completely ignores the real time.
 */
 package sima

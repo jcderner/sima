@@ -37,7 +37,7 @@ func (s TMState) String() string {
 //
 // When the TM is started, the simulation time proceeds with a certain speed (s. [TimeMachin.Speed] and [TimeMachin.SetSpeed])
 // compared to the real time.
-// Alternatively and for fastest processing the client may call [TimeMachine.Step] in a loop, which completely ignores the real time.
+// Alternatively and for fastest processing the client may call [TimeMachine.step] in a loop, which completely ignores the real time.
 type TimeMachine struct {
 	eventQueue *core.EventQueue
 	t          float64 //the actual simulation time in ms.
@@ -260,7 +260,7 @@ main:
 					break //no more events
 				}
 				if tNext < float64(dtReal)*tm.speed {
-					tm.Step()
+					tm.stepInternal()
 				} else {
 					break
 				}
@@ -269,8 +269,29 @@ main:
 	}
 }
 
-// Step processes the next event.
-func (tm *TimeMachine) Step() {
+// TODO: Add a method to read from tm.events,
+// so Step can be used from outside.
+// Idea: 2 methods step and Step.
+// Step read tm.events and calls step ...
+func (tm *TimeMachine) Step() (ok bool) {
+empty:
+	for {
+		select {
+		case ev := <-tm.events:
+			tm.eventQueue.Add(ev)
+		default:
+			break empty
+		}
+	}
+	_, ok = tm.eventQueue.NextT()
+	if ok {
+		tm.stepInternal()
+	}
+	return
+}
+
+// stepInternal processes the next event.
+func (tm *TimeMachine) stepInternal() {
 	ev := tm.eventQueue.Next()
 	tm.t = ev.T
 	ev.F()

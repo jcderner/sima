@@ -179,6 +179,30 @@ func TestTimeMachineSchedule(t *testing.T) {
 	tm.Stop()
 }
 
+func TestTimeMachineStep(t *testing.T) {
+	tm := NewTimeMachine(1.0, 10, 2)
+
+	executed100 := false
+	tm.Schedule(100, func() {
+		executed100 = true
+	})
+	executed0 := false
+	tm.Schedule(-10, func() {
+		executed0 = true
+	})
+	for {
+		if !tm.Step() {
+			break
+		}
+	}
+	if !executed100 {
+		t.Errorf("Expected scheduled event 100 to be executed")
+	}
+	if !executed0 {
+		t.Errorf("Expected scheduled event 0 to be executed")
+	}
+}
+
 // Example shows how to use the TimeMachine.
 // Before Start the ping function is scheduled at t=0 ms.
 // The TimeMachine then runs ping and schedules pong at t=20 ms.
