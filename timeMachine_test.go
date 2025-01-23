@@ -160,7 +160,7 @@ func TestTimeMachineSetSpeed(t *testing.T) {
 
 func TestTimeMachineSchedule(t *testing.T) {
 	tm := NewTimeMachine(1.0, 10, 2)
-	go tm.Start()
+	tm.Start()
 	executed100 := false
 	tm.Schedule(100, func() {
 		executed100 = true
