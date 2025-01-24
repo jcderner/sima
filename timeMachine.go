@@ -269,10 +269,7 @@ main:
 	}
 }
 
-// TODO: Add a method to read from tm.events,
-// so Step can be used from outside.
-// Idea: 2 methods step and Step.
-// Step read tm.events and calls step ...
+// Step reads all pending events from the event channel and runs the next step.
 func (tm *TimeMachine) Step() (ok bool) {
 empty:
 	for {
