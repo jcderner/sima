@@ -223,9 +223,11 @@ func Example() {
 	}
 	pong = func() {
 		fmt.Println(tm.T(), ": Pong!")
-		tm.Schedule(80.0, ping)
+		tm.ScheduleThreadSafe(80.0, ping)
 	}
 	tm.Schedule(0.0, ping)
+	// for tm.Step() {
+	// }
 	tm.Start()
 	time.Sleep(70 * time.Millisecond) // wait for ping, pong, ping, pong
 	tm.Stop()
@@ -248,7 +250,7 @@ func ExampleTimeMachine_Pause() {
 	}
 	pong = func() {
 		fmt.Println(tm.T(), ": Pong!")
-		tm.Schedule(80.0, ping)
+		tm.ScheduleThreadSafe(80.0, ping)
 	}
 	tm.Schedule(0.0, ping)
 	tm.Start()

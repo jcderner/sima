@@ -37,7 +37,7 @@ func (s TMState) String() string {
 //
 // When the TM is started, the simulation time proceeds with a certain speed (s. [TimeMachin.Speed] and [TimeMachin.SetSpeed])
 // compared to the real time.
-// Alternatively and for fastest processing the client may call [TimeMachine.step] in a loop, which completely ignores the real time.
+// Alternatively and for fastest processing the client may call [TimeMachine.Step] in a loop, which completely ignores the real time.
 type TimeMachine struct {
 	eventQueue *core.EventQueue
 	t          float64 //the actual simulation time in ms.
@@ -45,7 +45,7 @@ type TimeMachine struct {
 	state      TMState
 	speed      float64 //ratio between simulation and real time.
 	cmds       chan string
-	events     chan *core.Event
+	events     chan *core.Event //stores the events with the time dt. On retrieval the actual time needs to be added: ev.T+=t
 	done       chan bool
 }
 
@@ -55,7 +55,7 @@ type TimeMachine struct {
 //   - The eventChanSize is the capacity of the events channel.
 //     It should be at least the number of events that are expected to be scheduled initially or in one cycle.
 //   - The cycleTime is the real time in ms between two checks for new commands and events.
-func NewTimeMachine(speed float64, eventChanSize int, cycleTime int) *TimeMachine {
+func NewTimeMachine(speed float64, eventsChanSize int, cycleTime int) *TimeMachine {
 	if speed < 0.01 {
 		log.Printf("Speed = %v must not be smaller than 0.01. It will be reset to 0.01.", speed)
 		speed = 0.01
@@ -68,7 +68,7 @@ func NewTimeMachine(speed float64, eventChanSize int, cycleTime int) *TimeMachin
 		speed:      speed,
 		cmds:       make(chan string),
 		done:       make(chan bool), //channel to signal that a command has been executed.
-		events:     make(chan *core.Event, eventChanSize),
+		events:     make(chan *core.Event, eventsChanSize),
 	}
 }
 
@@ -94,12 +94,28 @@ func (tm *TimeMachine) Speed() float64 {
 // Schedule schedules a function f to be executed dt ms after the current simulation time.
 // f needs to be a parameterless function (or method or closure) without return value
 // If dt is negative, it will be reset to 0.0.
+//
+// It should be used for scheduling events produced from the simulation.
+//
+// Observe that it is NOT thread-safe!
+// External events, typically produced in another go routine should use [TimeMachine.ScheduleThreadSafe].
 func (tm *TimeMachine) Schedule(dt float64, f func()) {
 	if dt < 0 {
 		log.Printf("dt = %v < 0. Will be reset to 0.0", dt)
 		dt = 0.0
 	}
-	tm.events <- (&core.Event{T: tm.t + dt, F: f})
+	ev := &core.Event{T: tm.t + dt, F: f}
+	tm.eventQueue.Add(ev)
+}
+
+// ScheduleThreadSafe schedules a function f the same way as [TimeMachine.Schedule],
+// but thread-safe by buffering the event in the events channel.
+func (tm *TimeMachine) ScheduleThreadSafe(dt float64, f func()) {
+	if dt < 0 {
+		log.Printf("dt = %v < 0. Will be reset to 0.0", dt)
+		dt = 0.0
+	}
+	tm.events <- (&core.Event{T: dt, F: f})
 }
 
 // Start starts the simulation in a go routine.
@@ -209,6 +225,8 @@ main:
 		for {
 			select {
 			case ev := <-tm.events:
+				//add the current time
+				ev.T += tm.T()
 				tm.eventQueue.Add(ev)
 			default:
 				break eventLoop
@@ -260,7 +278,7 @@ main:
 					break //no more events
 				}
 				if tNext < float64(dtReal)*tm.speed {
-					tm.stepInternal()
+					tm.stepInternally()
 				} else {
 					break
 				}
@@ -275,6 +293,8 @@ empty:
 	for {
 		select {
 		case ev := <-tm.events:
+			//add the current time
+			ev.T += tm.T()
 			tm.eventQueue.Add(ev)
 		default:
 			break empty
@@ -282,13 +302,13 @@ empty:
 	}
 	_, ok = tm.eventQueue.NextT()
 	if ok {
-		tm.stepInternal()
+		tm.stepInternally()
 	}
 	return
 }
 
-// stepInternal processes the next event.
-func (tm *TimeMachine) stepInternal() {
+// stepInternally processes the next event.
+func (tm *TimeMachine) stepInternally() {
 	ev := tm.eventQueue.Next()
 	tm.t = ev.T
 	ev.F()
@@ -296,6 +316,8 @@ func (tm *TimeMachine) stepInternal() {
 	for {
 		select {
 		case ev := <-tm.events:
+			//add the current time
+			ev.T += tm.T()
 			tm.eventQueue.Add(ev)
 		default:
 			return
